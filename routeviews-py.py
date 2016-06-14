@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 # Python script to record changes in BGP data from routeviews.org
 
@@ -8,55 +8,15 @@ import bz2
 import sqlite3
 import csv
 import sys
-import getopt
 import re
 import time
 import datetime
 import os.path
 import operator
+import argparse
 
 url = 'http://archive.routeviews.org/oix-route-views/oix-full-snapshot-latest.dat.bz2'
 ts = time.time()
-output_format = 'sqlite' # Default output. Don't change this.
-
-# Download data, write to a file
-print "[!] Downloading latest Route Views BGP data"
-r = requests.get(url)
-with open("oix-full-snapshot-latest.dat.bz2", "wb") as code:
-	code.write(r.content)
-
-# Extract the bzip2 file
-print "[!] Extracting bzip"
-zipfile = bz2.BZ2File("oix-full-snapshot-latest.dat.bz2") # open the file
-data = zipfile.read() # get the decompressed data
-open("oix-full-snapshot-latest.dat", 'wb').write(data) # write an uncompressed file
-
-def help():
-	print 'Usage: ./routeviews-py.py -a <comma-seperated list of ASNs> -o <sqlite,csv>'
-	print 'Example: ./routeviews-py.py -a 100,200,300 -o csv'
-	print 'Notes: -a flag is required. -o flag is optional. Default output is SQLite.'
-	return
-
-def options():
-	if len(sys.argv) == 1:
-		print ''
-	try: 
-		opts, args = getopt.getopt(sys.argv[1:], "ha:o:", ["autosys=", "output="])
-	except getopt.GetoptError as err:
-		print 'usage goes here'
-		print str(err)
-		sys.exit(2)
-	for opt, arg in opts:
-		if opt == '-h':
-			help()
-			sys.exit()
-		elif opt in ("-a", "--autosys"):
-			global autonomous_systems
-			autonomous_systems = arg
-			print '[!] Target Autonomous Systems:', autonomous_systems
-		elif opt in ("-o", "--output"):
-			global output_format
-			output_format = arg
 
 def search_route_views_data(as_number):
 	routeviews_data = open('oix-full-snapshot-latest.dat','r')
@@ -68,12 +28,10 @@ def search_route_views_data(as_number):
 	for line in file_data:
 		if re.search(regex, line):
 			as_match_count += 1
-	
 	return as_match_count
 
 def sqlite_calculate_change(as_number):
 	current_as_count = search_route_views_data(as_number)
-#	c.execute('SELECT COUNT FROM BGP_DATA WHERE ASN = '+as_number+' ORDER BY DATE DESC LIMIT 1')
 	c.execute("SELECT COUNT FROM BGP_DATA WHERE ASN=:as_number ORDER BY DATE DESC LIMIT 1", {"as_number": as_number})
 	sql_output = c.fetchone()
 	if sql_output:
@@ -119,7 +77,7 @@ def csv_calculate_change(as_number):
 			change = round(((current_as_count/last_as_count)-1),2)
 			#print change
 	else:
-		print '[!] Autonomous System not yet in database. Adding with a change value of 1.'
+		print '[!] Autonomous System not yet in CSV. Adding with a change value of 1.'
 		change = 1
 	return (current_as_count, change)
 
@@ -138,18 +96,21 @@ def update_csv(as_number):
 			writer.writerow(data) # put the data into the csv here
 	return
 
-options()
+def main(args):
+	# Download data, write to a file
+	print "[!] Downloading latest Route Views BGP data"
+	r = requests.get(url)
+	with open("oix-full-snapshot-latest.dat.bz2", "wb") as code:
+		code.write(r.content)
 
-if output_format == 'csv':
-	#do csv stuff
-	print '[!] Results being written to CSV format\n'
-	#Check if Autonomous Systems have been defined using -a.
-	try:
-		autonomous_systems
-	except NameError:
-		print '[!] Error: No Autonomous Systems defined.'
-		help()
-	else:
+	# Extract the bzip2 file
+	print "[!] Extracting bzip"
+	zipfile = bz2.BZ2File("oix-full-snapshot-latest.dat.bz2") # open the file
+	data = zipfile.read() # get the decompressed data
+	open("oix-full-snapshot-latest.dat", 'wb').write(data) # write an uncompressed file
+
+	if args.output_format == 'csv':
+		print '[!] Results being written to CSV format'
 		csv_exists = os.path.isfile('bgp.csv')
 		with open('bgp.csv', 'a+') as csvfile:
 			fieldnames = ['timestamp', 'asn', 'count', 'change']
@@ -157,29 +118,51 @@ if output_format == 'csv':
 			if not csv_exists:
 				print '[!] CSV file not found. Creating CSV.'
 				writer.writeheader()
+				
 		# Loop through ASNs identified with -a flag
-		for asn in autonomous_systems.split(','):
+		for asn in args.autonomous_systems.split(','):
 			print '[!] Looking at ASN #', asn
 			update_csv(asn)
-else:
-	print '[!] Results being written to SQLite format'
-	#Check if Autonomous Systems have been defined using -a.
-	try:
-		autonomous_systems
-	except NameError:
-		print '[!] Error: No Autonomous Systems defined.'
-		help()
 	else:
+		print '[!] Results being written to SQLite format'
 		conn = sqlite3.connect(r"bgp.db") # Connect to our database. If it doesn't exist, create it.
+		global c
 		c = conn.cursor()
 		c.execute('CREATE TABLE IF NOT EXISTS BGP_DATA (DATE TEXT, ASN INT, COUNT INT, CHANGE TEXT)')
 
 		# Loop through ASNs identified with -a flag
-		for asn in autonomous_systems.split(','):
-			print '[!] Looking at ASN #', asn
+		for asn in args.autonomous_systems.split(','):
+			print '[!] Searching for ASN #', asn
 			sqlite_update_database(asn)
 
 		conn.commit() #Write changes to SQLite
 		conn.close() #close database
-
-print '\n[!] All done.'
+	
+	print '[!] Removing Route Views raw data'
+	os.remove('oix-full-snapshot-latest.dat')
+	os.remove('oix-full-snapshot-latest.dat.bz2')
+	print '\n[!] All done.'
+	
+if __name__ == '__main__':
+	parser = argparse.ArgumentParser(
+		description='Python script to record changes in BGP data from routeviews.org',
+		usage='Usage: ./routeviews-py.py [-a ASNs] [-o sqlite|csv]',
+	)
+	parser.add_argument('-v', '--version',
+		action='version',
+		version='routeviews-py version 0.2',
+	)
+	parser.add_argument('-a',
+		dest='autonomous_systems',
+		help='ASNs to record in comma-seperated format. Ex: -a 100,200,300',
+		required=True,
+	)
+	parser.add_argument('-o',
+		dest='output_format',
+		choices=['sqlite', 'csv'],
+		default='sqlite',
+		help='Output format: SQLite or CSV. Default is SQLite.',
+#		required=True,
+	)
+	args = parser.parse_args()
+main(args)
