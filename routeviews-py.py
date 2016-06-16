@@ -103,12 +103,6 @@ def main(args):
 	with open("oix-full-snapshot-latest.dat.bz2", "wb") as code:
 		code.write(r.content)
 
-	# Extract the bzip2 file
-#	print "[!] Extracting bzip"
-#	zipfile = bz2.BZ2File("oix-full-snapshot-latest.dat.bz2") # open the file
-#	data = zipfile.read() # get the decompressed data
-#	open("oix-full-snapshot-latest.dat", 'wb').write(data) # write an uncompressed file
-
 	#Extract the bzip2 file
         print "[!] Extracting bzip"
 	with open("oix-full-snapshot-latest.dat", 'wb') as extracted, bz2.BZ2File("oix-full-snapshot-latest.dat.bz2", 'rb') as file:
