@@ -104,10 +104,16 @@ def main(args):
 		code.write(r.content)
 
 	# Extract the bzip2 file
-	print "[!] Extracting bzip"
-	zipfile = bz2.BZ2File("oix-full-snapshot-latest.dat.bz2") # open the file
-	data = zipfile.read() # get the decompressed data
-	open("oix-full-snapshot-latest.dat", 'wb').write(data) # write an uncompressed file
+#	print "[!] Extracting bzip"
+#	zipfile = bz2.BZ2File("oix-full-snapshot-latest.dat.bz2") # open the file
+#	data = zipfile.read() # get the decompressed data
+#	open("oix-full-snapshot-latest.dat", 'wb').write(data) # write an uncompressed file
+
+	#Extract the bzip2 file
+        print "[!] Extracting bzip"
+	with open("oix-full-snapshot-latest.dat", 'wb') as extracted, bz2.BZ2File("oix-full-snapshot-latest.dat.bz2", 'rb') as file:
+        	for data in iter(lambda : file.read(100 * 1024), b''):
+	            extracted.write(data)
 
 	if args.output_format == 'csv':
 		print '[!] Results being written to CSV format'
@@ -118,7 +124,7 @@ def main(args):
 			if not csv_exists:
 				print '[!] CSV file not found. Creating CSV.'
 				writer.writeheader()
-				
+
 		# Loop through ASNs identified with -a flag
 		for asn in args.autonomous_systems.split(','):
 			print '[!] Looking at ASN #', asn
@@ -137,12 +143,12 @@ def main(args):
 
 		conn.commit() #Write changes to SQLite
 		conn.close() #close database
-	
+
 	print '[!] Removing Route Views raw data'
 	os.remove('oix-full-snapshot-latest.dat')
 	os.remove('oix-full-snapshot-latest.dat.bz2')
 	print '\n[!] All done.'
-	
+
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(
 		description='Python script to record changes in BGP data from routeviews.org',
