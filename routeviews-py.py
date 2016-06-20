@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 # Python script to record changes in BGP data from routeviews.org
+# @tprime_
 
 from __future__ import division
 import requests
@@ -24,7 +25,8 @@ def search_route_views_data(as_number):
 	routeviews_data.close()
 
 	as_match_count = 0
-	regex = r"\s" + re.escape(as_number) + r"\s"
+	#regex = r"\s" + re.escape(as_number) + r"\s"
+	regex = as_number + "\s(i|e|\?)"
 	for line in file_data:
 		if re.search(regex, line):
 			as_match_count += 1
@@ -53,7 +55,7 @@ def sqlite_update_database(as_number):
 	data_to_insert = sqlite_calculate_change(as_number)
 	count = data_to_insert[0] # current_as_count
 	change = data_to_insert[1] # change
-	print '[!] Inserting the following: ', timestamp, as_number, count, change
+	print '[!] Inserting the following:', timestamp, as_number, count, change
 	c.execute("INSERT INTO BGP_DATA (DATE, ASN, COUNT, CHANGE) VALUES (?, ?, ?, ?)", (timestamp, as_number, count, change))
 	return
 
@@ -104,7 +106,7 @@ def main(args):
 		code.write(r.content)
 
 	#Extract the bzip2 file
-        print "[!] Extracting bzip"
+	print "[!] Extracting bzip"
 	with open("oix-full-snapshot-latest.dat", 'wb') as extracted, bz2.BZ2File("oix-full-snapshot-latest.dat.bz2", 'rb') as file:
         	for data in iter(lambda : file.read(100 * 1024), b''):
 	            extracted.write(data)
@@ -121,7 +123,7 @@ def main(args):
 
 		# Loop through ASNs identified with -a flag
 		for asn in args.autonomous_systems.split(','):
-			print '[!] Looking at ASN #', asn
+			print '\n[!] Searching for ASN #', asn
 			update_csv(asn)
 	else:
 		print '[!] Results being written to SQLite format'
@@ -132,16 +134,16 @@ def main(args):
 
 		# Loop through ASNs identified with -a flag
 		for asn in args.autonomous_systems.split(','):
-			print '[!] Searching for ASN #', asn
+			print '\n[!] Searching for ASN #', asn
 			sqlite_update_database(asn)
 
 		conn.commit() #Write changes to SQLite
 		conn.close() #close database
 
-	print '[!] Removing Route Views raw data'
+	print '\n[!] Removing Route Views raw data'
 	os.remove('oix-full-snapshot-latest.dat')
 	os.remove('oix-full-snapshot-latest.dat.bz2')
-	print '\n[!] All done.'
+	print '[!] All done'
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(
