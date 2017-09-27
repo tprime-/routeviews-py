@@ -5,7 +5,7 @@
 
 from __future__ import division
 import requests
-import bz2
+#import bz2
 import sqlite3
 import csv
 import sys
@@ -20,16 +20,12 @@ url = 'http://archive.routeviews.org/oix-route-views/oix-full-snapshot-latest.da
 ts = time.time()
 
 def search_route_views_data(as_number):
-	routeviews_data = open('oix-full-snapshot-latest.dat','r')
-	file_data = routeviews_data.readlines()
-	routeviews_data.close()
-
-	as_match_count = 0
-	#regex = r"\s" + re.escape(as_number) + r"\s"
-	regex = as_number + "\s(i|e|\?)"
-	for line in file_data:
-		if re.search(regex, line):
-			as_match_count += 1
+	with open("oix-full-snapshot-latest.dat") as file_data:
+		as_match_count = 0
+		regex = as_number + "\s(i|e|\?)"
+		for line in file_data:
+			if re.search(regex, line):
+				as_match_count += 1
 	return as_match_count
 
 def sqlite_calculate_change(as_number):
@@ -105,11 +101,12 @@ def main(args):
 	with open("oix-full-snapshot-latest.dat.bz2", "wb") as code:
 		code.write(r.content)
 
-	#Extract the bzip2 file
+	#Extract the bzip2 file - using the os.system hack to make this work on low-resource systems
 	print "[!] Extracting bzip"
-	with open("oix-full-snapshot-latest.dat", 'wb') as extracted, bz2.BZ2File("oix-full-snapshot-latest.dat.bz2", 'rb') as file:
-        	for data in iter(lambda : file.read(100 * 1024), b''):
-	            extracted.write(data)
+	# with open("oix-full-snapshot-latest.dat", 'wb') as extracted, bz2.BZ2File("oix-full-snapshot-latest.dat.bz2", 'rb') as file:
+        	# for data in iter(lambda : file.read(100 * 1024), b''):
+	            # extracted.write(data)
+	os.system('bzip2 -d oix-full-snapshot-latest.dat.bz2')
 
 	if args.output_format == 'csv':
 		print '[!] Results being written to CSV format'
@@ -142,9 +139,10 @@ def main(args):
 
 	print '\n[!] Removing Route Views raw data'
 	os.remove('oix-full-snapshot-latest.dat')
-	os.remove('oix-full-snapshot-latest.dat.bz2')
+	#os.remove('oix-full-snapshot-latest.dat.bz2') # bzip2 removes input file by default
 	print '[!] All done'
-
+	exit()
+	
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(
 		description='Python script to record changes in BGP data from routeviews.org',
