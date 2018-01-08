@@ -8,7 +8,6 @@ import requests
 #import bz2
 import sqlite3
 import csv
-import sys
 import re
 import time
 import datetime
