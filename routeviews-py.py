@@ -57,7 +57,7 @@ def sqlite_update_database(as_number):
 def csv_calculate_change(as_number):
 	current_as_count = search_route_views_data(as_number)
 	asn_matches = []
-	with open('bgp.csv', 'rb') as csvfile:
+	with open(output_destination, 'rb') as csvfile:
 		reader = csv.reader(csvfile, delimiter=',')
 		sortedlist = sorted(reader, key=operator.itemgetter(0), reverse=True)
 		for line in sortedlist:
@@ -87,7 +87,7 @@ def update_csv(as_number):
 	data = [timestamp, as_number, count, change]
 	print '[!] Inserting the following:', data
 	#print fieldnames
-	with open('bgp.csv', 'a+') as csvfile:
+	with open(output_destination, 'a+') as csvfile:
 			#fieldnames = ['timestamp', 'asn', 'count', 'change']
 			writer = csv.writer(csvfile)
 			writer.writerow(data) # put the data into the csv here
@@ -107,10 +107,15 @@ def main(args):
 	            # extracted.write(data)
 	os.system('bzip2 -d oix-full-snapshot-latest.dat.bz2')
 
+	if args.output_destination:
+		output_destination = args.output_destination
+	else:
+		output_destination = os.getcwd()
+
 	if args.output_format == 'csv':
 		print '[!] Results being written to CSV format'
-		csv_exists = os.path.isfile('bgp.csv')
-		with open('bgp.csv', 'a+') as csvfile:
+		csv_exists = os.path.isfile(output_destination)
+		with open(output_destination, 'a+') as csvfile:
 			fieldnames = ['timestamp', 'asn', 'count', 'change']
 			writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 			if not csv_exists:
@@ -123,7 +128,7 @@ def main(args):
 			update_csv(asn)
 	else:
 		print '[!] Results being written to SQLite format'
-		conn = sqlite3.connect(r"bgp.db") # Connect to our database. If it doesn't exist, create it.
+		conn = sqlite3.connect(output_destination) # Connect to our database. If it doesn't exist, create it.
 		global c
 		c = conn.cursor()
 		c.execute('CREATE TABLE IF NOT EXISTS BGP_DATA (DATE TEXT, ASN INT, COUNT INT, CHANGE TEXT)')
@@ -145,7 +150,7 @@ def main(args):
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(
 		description='Python script to record changes in BGP data from routeviews.org',
-		usage='Usage: ./routeviews-py.py [-a ASNs] [-o sqlite|csv]',
+		usage='Usage: ./routeviews-py.py [-a ASNs] [-f sqlite|csv] [-o /path/to/bgp.dborcsv]',
 	)
 	parser.add_argument('-v', '--version',
 		action='version',
@@ -156,11 +161,16 @@ if __name__ == '__main__':
 		help='ASNs to record in comma-seperated format. Ex: -a 100,200,300',
 		required=True,
 	)
-	parser.add_argument('-o',
+	parser.add_argument('-f',
 		dest='output_format',
 		choices=['sqlite', 'csv'],
 		default='sqlite',
 		help='Output format: SQLite or CSV. Default is SQLite.',
+#		required=True,
+	)
+	parser.add_argument('-o',
+		dest='output_destination',
+		help='Output destination',
 #		required=True,
 	)
 	args = parser.parse_args()
